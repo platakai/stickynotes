@@ -26,11 +26,11 @@ fun HomeScreen(
     authVM: AuthViewModel = viewModel(),
     notesVM: FirestoreNotesViewModel
 ) {
-    // Observe auth user and notes
+    // Observe user and notes
     val currentUser by authVM.user.collectAsState()
     val notes by screenVM.notes.collectAsState()
 
-    // Start listening once
+    // Start listening once user is available
     LaunchedEffect(currentUser?.uid) {
         currentUser?.uid?.let { screenVM.startListening(it) }
     }
@@ -51,59 +51,77 @@ fun HomeScreen(
                             popUpTo("login") { inclusive = true }
                             launchSingleTop = true
                         }
-                    }) { Text("Odjava") }
+                    }) {
+                        Text("Odjava")
+                    }
                 }
             )
         }
     ) { paddingValues ->
         Column(
-            Modifier
+            modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
                 .padding(16.dp)
         ) {
-            // Input for new note
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            // Input row for new note
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 OutlinedTextField(
                     value = newNote,
                     onValueChange = { newNote = it },
                     label = { Text("Naslov bilješke") },
                     modifier = Modifier.weight(1f)
                 )
-                Spacer(Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 Button(
                     onClick = {
-                        currentUser?.uid?.let { screenVM.addNote(newNote, it) }
+                        currentUser?.uid?.let { uid ->
+                            screenVM.add(newNote)
+                        }
                         newNote = ""
                     },
                     enabled = newNote.isNotBlank()
-                ) { Text("Dodaj") }
+                ) {
+                    Text("Dodaj")
+                }
             }
-            Spacer(Modifier.height(16.dp))
 
-            // List of note titles with Edit/Delete
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // List of notes
             if (notes.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
                     Text("Nema bilješki.")
                 }
             } else {
-                LazyColumn(Modifier.fillMaxSize()) {
-                    items(notes) { (id, text) ->
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    items(notes) { (id, title) ->
                         Row(
-                            Modifier
+                            modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = text,
+                                text = title,
                                 style = MaterialTheme.typography.bodyLarge,
                                 modifier = Modifier.weight(1f)
                             )
-                            IconButton(onClick = { editingNote = id to text; editText = text }) {
+                            IconButton(onClick = {
+                                editingNote = id to title
+                                editText = title
+                            }) {
                                 Icon(Icons.Default.Edit, contentDescription = "Uredi")
                             }
-                            IconButton(onClick = { screenVM.deleteNote(id) }) {
+                            IconButton(onClick = {
+                                screenVM.deleteNote(id)
+                            }) {
                                 Icon(Icons.Default.Delete, contentDescription = "Obriši")
                             }
                         }
@@ -121,7 +139,7 @@ fun HomeScreen(
                     OutlinedTextField(
                         value = editText,
                         onValueChange = { editText = it },
-                        label = { Text("Novo ime") },
+                        label = { Text("Novi naslov") },
                         modifier = Modifier.fillMaxWidth()
                     )
                 },
@@ -129,10 +147,14 @@ fun HomeScreen(
                     TextButton(onClick = {
                         screenVM.updateNote(id, editText)
                         editingNote = null
-                    }) { Text("Spremi") }
+                    }) {
+                        Text("Spremi")
+                    }
                 },
                 dismissButton = {
-                    TextButton(onClick = { editingNote = null }) { Text("Odustani") }
+                    TextButton(onClick = { editingNote = null }) {
+                        Text("Odustani")
+                    }
                 }
             )
         }

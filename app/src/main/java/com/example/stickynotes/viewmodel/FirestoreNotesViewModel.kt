@@ -13,7 +13,6 @@ import kotlinx.coroutines.launch
 /**
  * ViewModel za bilješke pohranjene u Firestore kolekciji "notes".
  * Svaki dokument ima polja:
- * - "id": automatski Firestore dokument ID
  * - "text": String s tekstom bilješke
  * - "uid": String s UID-om korisnika
  * - "timestamp": Long s vremenom kreiranja
@@ -26,7 +25,7 @@ class FirestoreNotesViewModel : ViewModel() {
     /** Emits listu parova (docId, noteText) */
     val notes: StateFlow<List<Pair<String, String>>> = _notes
 
-    /** Počne slušati promjene u kolekciji za zadanog korisnika */
+    /** Počinje slušati promjene u kolekciji za zadanog korisnika */
     fun startListening(uid: String) {
         collection
             .whereEqualTo("uid", uid)
@@ -50,7 +49,33 @@ class FirestoreNotesViewModel : ViewModel() {
         _notes.value = list
     }
 
-    /** Dodaje novu bilješku u Firestore */
+    /** Dodaje novu bilješku za trenutno prijavljenog korisnika */
+    fun add(newNote: String) {
+        val uid = Firebase.auth.currentUser?.uid ?: return
+        addNote(newNote, uid)
+    }
+
+    /** Uklanja bilješku na zadanom indexu iz liste */
+    fun removeAt(index: Int) {
+        val list = _notes.value
+        if (index < 0 || index >= list.size) return
+        val id = list[index].first
+        deleteNote(id)
+    }
+
+    /** Briše sve bilješke korisnika iz Firestore i lokalne liste */
+    fun clearAll() {
+        viewModelScope.launch {
+            // iz trenutne kolekcije ukloni sve dokumente
+            _notes.value.forEach { (id, _) ->
+                collection.document(id).delete()
+            }
+            // lokalno očisti listu
+            _notes.value = emptyList()
+        }
+    }
+
+    /** Interna: Firestore dodavanje */
     fun addNote(text: String, uid: String) = viewModelScope.launch {
         val data = mapOf(
             "text" to text,
@@ -61,9 +86,11 @@ class FirestoreNotesViewModel : ViewModel() {
     }
 
     /** Ažurira postojeću bilješku po ID-u */
-    fun updateNote(id: String, newText: String) = viewModelScope.launch {
-        collection.document(id)
-            .update("text", newText)
+    fun updateNote(id: String, newText: String) {
+        viewModelScope.launch {
+            collection.document(id)
+                .update("text", newText)
+        }
     }
 
     /** Briše bilješku po ID-u */

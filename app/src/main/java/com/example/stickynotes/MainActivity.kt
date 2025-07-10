@@ -8,37 +8,56 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
-import androidx.compose.material3.Scaffold
-import androidx.navigation.compose.rememberNavController
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import com.example.stickynotes.ui.theme.StickyNotesTheme
+import androidx.navigation.compose.rememberNavController
 import com.example.stickynotes.ui.components.BottomNavigationBar
-import com.example.stickynotes.ui.screens.LoginScreen
+import com.example.stickynotes.ui.screens.AuthScreen
 import com.example.stickynotes.ui.screens.HomeScreen
 import com.example.stickynotes.ui.screens.SettingsScreen
+import com.example.stickynotes.ui.theme.StickyNotesTheme
+import com.example.stickynotes.viewmodel.AuthViewModel
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
         setContent {
-            // Pamti se dark mode kroz rotacije
+            // 1) dark/light mode
             var isDarkMode by rememberSaveable { mutableStateOf(false) }
-            // Nav controller za navigaciju
+
+            // 2) instanciraj ViewModel i Collect user
+            val authViewModel: AuthViewModel = viewModel()
+            val currentUser by authViewModel.user.collectAsState()
+
+            // 3) nav controller i start screen
             val navController = rememberNavController()
+            val startDestination = if (currentUser != null) "home" else "login"
 
             StickyNotesTheme(darkTheme = isDarkMode) {
                 Scaffold(
-                    bottomBar = { BottomNavigationBar(navController) }
+                    // 4) sad je bottomBar COMPOSABLE – ima user-a u scope
+                    bottomBar = {
+                        if (currentUser != null) {
+                            BottomNavigationBar(navController)
+                        }
+                    }
                 ) { innerPadding ->
                     NavHost(
                         navController = navController,
-                        startDestination = "login",
+                        startDestination = startDestination,
                         modifier = Modifier.padding(innerPadding)
                     ) {
                         composable("login") {
-                            LoginScreen(navController)
+                            AuthScreen(
+                                viewModel = authViewModel,
+                                onAuthSuccess = { navController.navigate("home") }
+                            )
                         }
                         composable("home") {
                             HomeScreen(navController)

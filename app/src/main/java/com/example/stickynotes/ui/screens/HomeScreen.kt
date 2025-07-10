@@ -6,9 +6,21 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material3.*
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.*
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -22,20 +34,19 @@ import com.example.stickynotes.viewmodel.FirestoreNotesViewModel
 @Composable
 fun HomeScreen(
     navController: NavHostController,
-    screenVM: FirestoreNotesViewModel = viewModel(),
-    authVM: AuthViewModel = viewModel(),
-    notesVM: FirestoreNotesViewModel
+    notesVM: FirestoreNotesViewModel = viewModel(),
+    authVM: AuthViewModel = viewModel()
 ) {
-    // Observe user and notes
+    // Observe authentication and notes
     val currentUser by authVM.user.collectAsState()
-    val notes by screenVM.notes.collectAsState()
+    val notes by notesVM.notes.collectAsState()
 
-    // Start listening once user is available
+    // Initialize Firestore listener once logged in
     LaunchedEffect(currentUser?.uid) {
-        currentUser?.uid?.let { screenVM.startListening(it) }
+        currentUser?.uid?.let { notesVM.startListening(it) }
     }
 
-    // Local UI state
+    // UI state for new note and editing
     var newNote by rememberSaveable { mutableStateOf("") }
     var editingNote by remember { mutableStateOf<Pair<String, String>?>(null) }
     var editText by rememberSaveable { mutableStateOf("") }
@@ -45,6 +56,11 @@ fun HomeScreen(
             TopAppBar(
                 title = { Text("Moje bilješke") },
                 actions = {
+                    IconButton(onClick = {
+                        currentUser?.uid?.let { notesVM.startListening(it) }
+                    }) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Osvježi")
+                    }
                     TextButton(onClick = {
                         authVM.signOut()
                         navController.navigate("login") {
@@ -64,7 +80,7 @@ fun HomeScreen(
                 .padding(paddingValues)
                 .padding(16.dp)
         ) {
-            // Input row for new note
+            // Input for new note title
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -78,10 +94,10 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.width(8.dp))
                 Button(
                     onClick = {
-                        currentUser?.uid?.let { uid ->
-                            screenVM.add(newNote)
+                        if (newNote.isNotBlank()) {
+                            currentUser?.uid?.let { notesVM.addNote(newNote, it) }
+                            newNote = ""
                         }
-                        newNote = ""
                     },
                     enabled = newNote.isNotBlank()
                 ) {
@@ -91,7 +107,7 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // List of notes
+            // Display notes list
             if (notes.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -110,8 +126,8 @@ fun HomeScreen(
                         ) {
                             Text(
                                 text = title,
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodyLarge
                             )
                             IconButton(onClick = {
                                 editingNote = id to title
@@ -119,44 +135,42 @@ fun HomeScreen(
                             }) {
                                 Icon(Icons.Default.Edit, contentDescription = "Uredi")
                             }
-                            IconButton(onClick = {
-                                screenVM.deleteNote(id)
-                            }) {
+                            IconButton(onClick = { notesVM.deleteNote(id) }) {
                                 Icon(Icons.Default.Delete, contentDescription = "Obriši")
                             }
                         }
                     }
                 }
             }
-        }
 
-        // Edit dialog
-        editingNote?.let { (id, _) ->
-            AlertDialog(
-                onDismissRequest = { editingNote = null },
-                title = { Text("Uredi bilješku") },
-                text = {
-                    OutlinedTextField(
-                        value = editText,
-                        onValueChange = { editText = it },
-                        label = { Text("Novi naslov") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                },
-                confirmButton = {
-                    TextButton(onClick = {
-                        screenVM.updateNote(id, editText)
-                        editingNote = null
-                    }) {
-                        Text("Spremi")
+            // Edit dialog
+            editingNote?.let { (id, _) ->
+                AlertDialog(
+                    onDismissRequest = { editingNote = null },
+                    title = { Text("Uredi bilješku") },
+                    text = {
+                        OutlinedTextField(
+                            value = editText,
+                            onValueChange = { editText = it },
+                            label = { Text("Novi naslov") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            notesVM.updateNote(id, editText)
+                            editingNote = null
+                        }) {
+                            Text("Spremi")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { editingNote = null }) {
+                            Text("Odustani")
+                        }
                     }
-                },
-                dismissButton = {
-                    TextButton(onClick = { editingNote = null }) {
-                        Text("Odustani")
-                    }
-                }
-            )
+                )
+            }
         }
     }
 }
